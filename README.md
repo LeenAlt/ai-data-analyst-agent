@@ -1,222 +1,195 @@
 # AI Data Analyst Agent
 
-## Project description
+## Project Overview
 
-The **AI Data Analyst Agent** is a multi-agent e-commerce analytics
-system built with Python, Pandas, LangChain, LangGraph, Groq, Chroma,
-and LangSmith.
+AI Data Analyst Agent is a multi-agent business analytics system designed to answer business questions by routing them to specialized analytical agents. The workflow combines specialist agents for Sales, Customer, Inventory, and Marketing with analytical tools, structured outputs, aggregation, short-term conversation context, and LangSmith observability.
 
-The system analyzes synthetic e-commerce data through four specialist
-agents:
+The complete implementation and captured execution outputs are provided in `ai_data_analyst_agent.ipynb`.
 
--   **Sales Agent** --- revenue, growth, products, categories, and
-    regions
--   **Customer Agent** --- customer segments, repeat-purchase behavior,
-    and policy questions
--   **Inventory Agent** --- low-stock and out-of-stock risk
--   **Marketing Agent** --- campaign spend, conversions, and campaign
-    efficiency
+## Project Objectives
 
-A manager/router uses structured LLM output to decide which specialists
-are relevant. Selected specialists then run in parallel, and an
-aggregator produces a structured final analysis separating facts,
-findings, hypotheses, recommendations, and limitations.
+The system is designed to:
 
-## Key capabilities
+- Route a business question to the relevant specialist agents.
+- Analyze Sales, Customer, Inventory, and Marketing data using dedicated tools.
+- Combine specialist findings into one structured final analysis.
+- Provide facts, findings, possible causes, recommendations, and confidence/limitations.
+- Preserve short-term conversational context through the workflow checkpointer.
+- Trace workflow and LLM activity using LangSmith.
 
--   Real Pandas-backed analytical tools
--   Pydantic structured results
--   LLM tool calling
--   LLM-based multi-agent routing
--   LangGraph Functional API
--   Parallel specialist execution
--   Structured aggregation
--   Policy RAG
--   Short-term conversation state
--   Cross-thread long-term memory
--   Human-in-the-loop approval
--   Retry and validation/error handling
--   LangSmith observability
+## System Architecture
 
-## Data
+The main workflow follows this pattern:
 
-The notebook generates synthetic data for 30 products, 300 customers,
-4,160 orders, 30 inventory records, and 30 marketing records covering
-January--June 2026. The data deliberately contains discoverable signals,
-including an Electronics sales dip in March, low-stock products, and an
-intentionally weak Campaign D.
-
-The notebook verifies that the datasets contain no nulls and that
-order/customer/product relationships are valid.
-
-## Architecture
-
-``` text
+```text
 User Question
-      |
-      v
-Manager / Router
-      |
-      +----------+-----------+-----------+
-      |          |           |           |
-    Sales    Customer    Inventory   Marketing
-      |          |           |           |
-      +----------+-----------+-----------+
-                     |
-                     v
-                Aggregator
-                     |
-                     v
-             Structured Analysis
+     |
+     v
+Question Router
+     |
+     +-------------------+-------------------+-------------------+
+     |                   |                   |                   |
+     v                   v                   v                   v
+ Sales Specialist   Customer Specialist  Inventory Specialist  Marketing Specialist
+     |                   |                   |                   |
+     +-------------------+-------------------+-------------------+
+                             |
+                             v
+                     Aggregator Agent
+                             |
+                             v
+                   Structured Final Analysis
 ```
 
-After routing, selected specialist tasks are launched concurrently. The
-aggregator runs after their results are available.
+The final analysis is returned as structured data containing:
 
-## RAG
+- `facts`
+- `findings`
+- `possible_causes`
+- `recommendations`
+- `confidence_and_limitations`
 
-The Customer Agent uses a policy RAG pipeline:
+## Main Components
 
-``` text
-Policy .txt files
-      -> DirectoryLoader
-      -> RecursiveCharacterTextSplitter
-      -> HuggingFace embeddings
-      -> Chroma
-      -> Retriever
-      -> policy_lookup_tool
-      -> Customer Agent
-```
+### Router
 
-The policy set covers returns, shipping, inventory, discounts, and
-customer service.
+Determines which specialist agents are relevant to the user's question.
 
-## Memory
+### Specialist Agents
 
-### Short-term memory
+The project includes dedicated specialist workflows for:
 
-A LangGraph `InMemorySaver` checkpointer stores conversation state by
-`thread_id`. The notebook tests two turns in the same thread and a fresh
-thread without the previous context.
+- Sales
+- Customer
+- Inventory
+- Marketing
 
-### Long-term memory
+Each specialist uses the tools and data relevant to its domain.
 
-LangGraph `InMemoryStore` stores facts in a user namespace. The notebook
-saves a fiscal-year fact and recalls it from a different thread.
+### Aggregator
 
-`InMemoryStore` is a capstone/demo implementation; a production system
-should use persistent storage.
+Combines the specialist outputs into one structured business analysis.
 
-## Human-in-the-loop
+### Memory and Workflow State
 
-Before a reorder/purchase-order action, the workflow calls
-`interrupt()`. The same thread is then resumed with
-`Command(resume=...)`.
+The workflow uses a checkpointer and conversation context so that a previous question and final analysis can be injected into a subsequent turn.
 
-Both approval and rejection paths are demonstrated. The purchase-order
-function is only a simulation.
+### LangSmith Observability
 
-## Error handling
+LangSmith tracing is enabled for the workflow and LLM activity. Phase 14 includes an actual workflow execution and inspection of LangSmith traces, including successful LLM, tool, parser, and workflow runs.
 
-Two strategies are implemented:
+## Example Result
 
-1.  `RetryPolicy` for transient task failures.
-2.  Validation in `correlation_tool` for invalid campaign IDs, returning
-    a structured error instead of silently producing an invalid
-    correlation.
+One captured analysis correctly identified that the premise of a sales decrease was not supported by the available data. The analysis reported:
 
-The retry demo intentionally fails twice and succeeds on attempt three.
+- May 2026 revenue: $281,925.52
+- June 2026 revenue: $292,105.93
+- May-to-June growth: +3.61%
+- Repeat-customer rate: 99.33%
+- Average order value: $404.34
+
+The same analysis identified six products below their reorder thresholds and noted that month-specific marketing and customer data were not available for establishing a causal explanation.
+
+Another captured analysis identified Campaign B as having the highest available conversion-per-spend metric at 65.55 conversions per $1,000 spent, while explicitly limiting the conclusion because monetary ROI and customer-level electronics purchasing data were unavailable.
 
 ## Observability
 
-LangSmith project:
+LangSmith was configured for the project using the project name:
 
-`ai-data-analyst-agent-capstone`
-
-A real successful trace was captured after tracing was enabled. The
-observed project contained successful runs including:
-
--   `customer_task`
--   `marketing_task`
--   `campaign_performance_tool`
--   `aggregator_task`
--   `ChatGroq`
--   `PydanticToolsParser`
--   `RunnableSequence`
-
-The trace therefore demonstrates internal LLM/tool activity rather than
-only a manually created LangSmith test run.
-
-## Important findings from the data
-
-The notebook's ground-truth checks show:
-
--   Electronics revenue: **\$44,614.97 in February 2026**
--   Electronics revenue: **\$22,850.98 in March 2026**
--   February → March Electronics growth: **-48.78%**
--   **6** products below the reorder threshold
--   **0** products completely out of stock in the inventory snapshot
--   Campaign D: **4.5 conversions per \$1,000 spend**, the weakest
-    campaign by that metric
--   Campaign B spend/conversion correlation: **0.987**
-
-The notebook's marketing metric is **conversion efficiency**, not
-monetary ROI. Therefore the project does not claim that Campaign B has
-the highest true financial ROI without revenue-attribution data.
-
-## Running the project
-
-The notebook is designed for Google Colab.
-
-Required secrets:
-
-``` text
-GROQ_API_KEY
-LANGSMITH_API_KEY
+```text
+ai-data-analyst-agent-capstone
 ```
 
-Run the notebook from top to bottom after configuring the secrets.
+The captured LangSmith traces included successful runs for components such as:
 
-Do not put API keys directly in the notebook or commit them to Git.
+- `aggregator_task`
+- `marketing_task`
+- `customer_task`
+- `campaign_performance_tool`
+- `ChatGroq`
+- `PydanticToolsParser`
+- `RunnableSequence`
 
-## Repository structure
+The notebook also includes the trace-upload synchronization step used before querying LangSmith.
 
-``` text
-.
-├── ai_data_analyst_agent_capstone.ipynb
+## Technologies
+
+The project uses the technologies and libraries implemented in the notebook, including:
+
+- Python
+- LangChain
+- LangGraph
+- Groq
+- Pydantic
+- Pandas
+- LangSmith
+- Google Colab
+
+## Repository Structure
+
+```text
+ai-data-analyst-agent/
+├── ai_data_analyst_agent.ipynb
 ├── README.md
 ├── CAPSTONE_WRITEUP.md
 ├── TECHNICAL_DOCUMENTATION.md
 ├── SUBMISSION_CHECKLIST.md
 ├── requirements.txt
-├── .gitignore
-├── data/
-└── policies/
+└── .gitignore
 ```
 
-The `data/` and `policies/` directories are generated by the notebook
-and can be excluded from Git if the final repository is intended to
-regenerate them.
+## How to Run
 
-## Programme information
+### 1. Open the notebook
 
-Training program:[بناء أنظمة وكلاء الذكاء الاصطناعي]
+Open:
 
-Cohort dates:[August 23–27, 2026]
+```text
+ai_data_analyst_agent.ipynb
+```
 
-Author:[Leen Saud Altayyar ]
+in Google Colab or a compatible Jupyter environment.
 
-SDAIA Academy GitHub: https://github.com/SDAIAAcademy
+### 2. Configure credentials
 
-## Limitations
+The notebook reads API credentials from the execution environment/Colab user data rather than storing secret keys directly in the repository.
 
--   The dataset is synthetic.
--   Customer metrics are all-time aggregates and do not provide
-    month-level customer behavior.
--   Inventory is a snapshot rather than a historical inventory series.
--   Marketing data supports conversions-per-\$1,000 and correlation, not
-    true revenue-based ROI.
--   Long-term memory uses `InMemoryStore`.
--   The final notebook contains an older Groq 120B rate-limit error from
-    testing; this is an observed limitation, not evidence that the
-    analytical tools themselves failed.
+Required services include the model provider used by the notebook and LangSmith for observability.
+
+Do not place API keys directly inside the notebook or repository.
+
+### 3. Install dependencies
+
+Install the packages listed in:
+
+```text
+requirements.txt
+```
+
+### 4. Run the notebook
+
+Run the notebook cells in order. The notebook contains the implementation, execution results, and captured outputs for the project phases.
+
+Students: Leen Altayyar
+
+Training program: Building AI Agent Systems
+
+Delivered by: https://github.com/SDAIAAcademy
+
+Trainer: Mohammed Albeladi
+
+Cohort/session dates: August 23–27, 2026
+
+The final analyses reflect the data available to the specialist agents. In particular, some questions cannot be answered with high confidence when month-specific or customer-level data are unavailable. The notebook records these limitations in the structured `confidence_and_limitations` output rather than presenting unsupported conclusions as facts.
+
+## Project Documentation
+
+- `CAPSTONE_WRITEUP.md` — section-by-section project write-up.
+- `TECHNICAL_DOCUMENTATION.md` — technical implementation and architecture documentation.
+- `SUBMISSION_CHECKLIST.md` — final submission checklist.
+- `requirements.txt` — Python dependencies.
+- `.gitignore` — excludes environment files, secrets, temporary files, and generated artifacts.
+
+## Repository
+
+
