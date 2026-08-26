@@ -31,6 +31,9 @@ documents are created, loaded with `DirectoryLoader`, split with
 through a retriever. The retriever is exposed as `policy_lookup_tool`
 and added to the Customer Agent's real tool set, so retrieval is part of
 the agent workflow rather than a disconnected demonstration.
+### RAG Pattern Choice
+
+This project uses a 2-Step RAG pattern because the policy lookup task is a relatively simple factual retrieval problem. The workflow retrieves relevant policy information first and then uses the retrieved context to answer the question. A multi-step Agentic RAG approach was not necessary because the task does not require iterative retrieval, complex reasoning across multiple sources, or dynamic tool selection. A Hybrid RAG approach was also unnecessary because the available use case can be handled effectively with a straightforward retrieve-then-use flow.
 
 ## 4. Context & state management --- 15 points
 
