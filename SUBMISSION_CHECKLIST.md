@@ -22,13 +22,13 @@
 -   [x] Technical documentation
 -   [x] `.gitignore`
 -   [x] `requirements.txt`
--   [ ] Meaningful incremental Git commits
--   [ ] Exact programme name added
--   [ ] Exact cohort dates added
--   [ ] Full name added
+-   [x] Meaningful incremental Git commits
+-   [x] Exact programme name added
+-   [x] Exact cohort dates added
+-   [x] Full name added
 -   [x] SDAIA Academy GitHub link included
--   [ ] Final clean notebook run after restart
--   [ ] Confirm no API keys are committed
+-   [x] Final clean notebook run after restart
+-   [x] Confirm no API keys are committed
 
 ## Final quality check
 
